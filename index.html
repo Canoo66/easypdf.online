@@ -1106,21 +1106,24 @@ async function buildPdf(title, bodyText, fontSize, align) {
 // MODAL
 async function openStripe(url, credits) {
   closeModal();
-  showToast('Zahlung wird geöffnet...');
+  showToast('Zahlung wird vorbereitet...');
   try {
     var res = await fetch('https://easypd-backend.vercel.app/create-checkout', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ credits: credits })
     });
+    if (!res.ok) throw new Error('Server Fehler');
     var data = await res.json();
     if (data.url) {
       window.location.href = data.url;
     } else {
-      window.open(url, '_blank');
+      throw new Error('Keine URL');
     }
   } catch(err) {
-    window.open(url, '_blank');
+    console.error(err);
+    showToast('Direkt zu Stripe...');
+    window.location.href = url;
   }
 }
 
