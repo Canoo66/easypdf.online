@@ -353,6 +353,24 @@ footer a:hover{color:var(--text2)}
 <script>
 // STATE
 var credits = parseInt(localStorage.getItem('easypd_credits') || '0');
+
+// Credits nach Stripe Zahlung gutschreiben
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('success') === 'true') {
+    var newCredits = parseInt(params.get('credits') || '0');
+    if (newCredits > 0) {
+      credits += newCredits;
+      localStorage.setItem('easypd_credits', String(credits));
+      history.replaceState({}, '', window.location.pathname);
+      setTimeout(function() {
+        showToast('+' + newCredits + ' Credits erfolgreich hinzugefuegt!');
+        updateCreditDisplay();
+        updateBtn();
+      }, 500);
+    }
+  }
+})();
 var curTool = 'img-pdf';
 var curCost = 1;
 var files = [];
