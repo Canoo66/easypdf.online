@@ -288,23 +288,23 @@ footer a:hover{color:var(--text2)}
       </div>
     </div>
     <div class="pkg-grid">
-      <div class="pkg" id="pkg-0" onclick="selPkg(0,5,'0,99 €')">
+      <div class="pkg" id="pkg-0" onclick="openStripe('https://buy.stripe.com/fZubJ3dAJ9dVfoHdKsaZi00',5)">
         <div class="pkg-credits">5</div>
         <div class="pkg-price">0,99 €</div>
         <div class="pkg-unit">0,20 € pro Umw.</div>
       </div>
-      <div class="pkg sel" id="pkg-1" onclick="selPkg(1,25,'3,99 €')">
+      <div class="pkg sel" id="pkg-1" onclick="openStripe('https://buy.stripe.com/00w00lfIR3TB4K321KaZi01',25)">
         <span class="pkg-badge">Beliebt</span>
         <div class="pkg-credits">25</div>
         <div class="pkg-price">3,99 €</div>
         <div class="pkg-unit">0,16 € pro Umw.</div>
       </div>
-      <div class="pkg" id="pkg-2" onclick="selPkg(2,60,'7,99 €')">
+      <div class="pkg" id="pkg-2" onclick="openStripe('https://buy.stripe.com/eVqcN7bsBfCja4n6i0aZi02',60)">
         <div class="pkg-credits">60</div>
         <div class="pkg-price">7,99 €</div>
         <div class="pkg-unit">0,13 € pro Umw.</div>
       </div>
-      <div class="pkg" id="pkg-3" onclick="selPkg(3,150,'14,99 €')">
+      <div class="pkg" id="pkg-3" onclick="openStripe('https://buy.stripe.com/fZu7sN8gp9dV4K36i0aZi03',150)">
         <div class="pkg-credits">150</div>
         <div class="pkg-price">14,99 €</div>
         <div class="pkg-unit">0,10 € pro Umw.</div>
@@ -325,7 +325,7 @@ footer a:hover{color:var(--text2)}
         <span style="font-size:.7rem;color:var(--text2);background:var(--surface);padding:3px 8px;border-radius:4px;border:0.5px solid var(--border)">🏦 SEPA</span>
       </div>
     </div>
-    <button class="pay-confirm" id="pay-confirm" onclick="buyCredits()">25 Credits für 3,99 € kaufen</button>
+    <div style="font-size:.75rem;color:var(--text2);text-align:center;padding:.5rem">👆 Paket auswählen um zu kaufen — Credits kommen automatisch nach Zahlung!</div>
     <div id="paypal-button-container" style="margin-top:.75rem;display:none"></div>
     <div class="modal-note" style="display:flex;align-items:center;justify-content:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="#635BFF"><path d="M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z"/></svg><span>256-bit SSL Verschlüsselung · powered by Stripe</span></div>
   </div>
@@ -353,24 +353,6 @@ footer a:hover{color:var(--text2)}
 <script>
 // STATE
 var credits = parseInt(localStorage.getItem('easypd_credits') || '0');
-
-// Credits nach Stripe Zahlung gutschreiben
-(function() {
-  var params = new URLSearchParams(window.location.search);
-  if (params.get('success') === 'true') {
-    var newCredits = parseInt(params.get('credits') || '0');
-    if (newCredits > 0) {
-      credits += newCredits;
-      localStorage.setItem('easypd_credits', String(credits));
-      history.replaceState({}, '', window.location.pathname);
-      setTimeout(function() {
-        showToast('+' + newCredits + ' Credits erfolgreich hinzugefuegt!');
-        updateCreditDisplay();
-        updateBtn();
-      }, 500);
-    }
-  }
-})();
 var curTool = 'img-pdf';
 var curCost = 1;
 var files = [];
@@ -1122,6 +1104,26 @@ async function buildPdf(title, bodyText, fontSize, align) {
 }
 
 // MODAL
+async function openStripe(url, credits) {
+  closeModal();
+  showToast('Zahlung wird geöffnet...');
+  try {
+    var res = await fetch('https://easypd-backend.vercel.app/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credits: credits })
+    });
+    var data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      window.open(url, '_blank');
+    }
+  } catch(err) {
+    window.open(url, '_blank');
+  }
+}
+
 function showComingSoon() { document.getElementById("cs-modal").classList.add("open"); }
 
 function openModal() { document.getElementById('modal-bg').classList.add('open'); }
@@ -1138,14 +1140,7 @@ function selPkg(i, c, p) {
 
 
 function buyCredits() {
-  // Stripe Integration kommt hier rein
-  // Temporaer: Credits direkt gutschreiben (wird durch Stripe ersetzt)
-  credits += pkgSel.c;
-  saveCredits();
-  updateCreditDisplay();
-  closeModal();
-  showToast('+' + pkgSel.c + ' Credits hinzugefuegt!');
-  updateBtn();
+  showToast('Bitte Paket auswählen!');
 }
 
 function showToast(msg) {
