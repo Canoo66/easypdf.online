@@ -326,6 +326,13 @@ footer a:hover{color:var(--text2)}
       </div>
     </div>
     <div style="font-size:.75rem;color:var(--text2);text-align:center;padding:.5rem">👆 Paket auswählen um zu kaufen — Credits kommen automatisch nach Zahlung!</div>
+    <div style="margin-top:.75rem;border-top:0.5px solid var(--border);padding-top:.9rem">
+      <div style="font-size:.75rem;color:var(--text2);margin-bottom:.5rem;text-align:center">Credits nicht angekommen? Code vom Support einlösen:</div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="redeem-input" placeholder="cs_..." style="flex:1;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:.55rem .75rem;color:var(--text);font-size:.8rem;font-family:inherit;outline:none;min-width:0" />
+        <button onclick="redeemCode()" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:.55rem .9rem;font-size:.8rem;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">Einlösen</button>
+      </div>
+    </div>
     <div id="paypal-button-container" style="margin-top:.75rem;display:none"></div>
     <div class="modal-note" style="display:flex;align-items:center;justify-content:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="#635BFF"><path d="M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z"/></svg><span>256-bit SSL Verschlüsselung · powered by Stripe</span></div>
   </div>
@@ -424,6 +431,39 @@ async function checkPaymentReturn() {
 
 function cleanUrl() {
   try { history.replaceState(null, '', window.location.pathname); } catch(e) {}
+}
+
+// ===== CODE EINLÖSEN (Session-ID als Einlöse-Code) =====
+async function redeemCode() {
+  var input = document.getElementById('redeem-input');
+  var code = (input.value || '').trim();
+  if (!code) { showToast('Bitte Code eingeben.'); return; }
+  if (code.indexOf('cs_') !== 0) { showToast('Ungültiger Code — muss mit cs_ beginnen.'); return; }
+
+  var used = JSON.parse(localStorage.getItem('easypd_used_sessions') || '[]');
+  if (used.indexOf(code) !== -1) { showToast('Dieser Code wurde bereits eingelöst.'); return; }
+
+  showToast('Code wird geprüft...');
+  try {
+    var res = await fetch('https://easypd-backend.vercel.app/verify-payment?session_id=' + encodeURIComponent(code));
+    var data = await res.json();
+
+    if (data.paid && data.credits > 0) {
+      used.push(code);
+      localStorage.setItem('easypd_used_sessions', JSON.stringify(used.slice(-50)));
+      credits += data.credits;
+      saveCredits();
+      updateCreditDisplay();
+      updateBtn();
+      input.value = '';
+      showToast('✅ ' + data.credits + ' Credits gutgeschrieben!');
+    } else {
+      showToast('❌ Code ungültig oder Zahlung nicht gefunden.');
+    }
+  } catch(err) {
+    console.error(err);
+    showToast('Fehler — bitte später erneut versuchen.');
+  }
 }
 
 // ===== PENDING SESSION: funktioniert auch OHNE Redirect von Stripe =====
