@@ -379,8 +379,99 @@ updateBtn();
 
 function saveCredits() { localStorage.setItem('easypd_credits', String(credits)); }
 
+// ===== ZAHLUNG VERIFIZIEREN (nach Stripe-Redirect) =====
+checkPaymentReturn();
+
+async function checkPaymentReturn() {
+  var params = new URLSearchParams(window.location.search);
+
+  if (params.get('cancelled') === 'true') {
+    cleanUrl();
+    showToast('Zahlung abgebrochen.');
+    return;
+  }
+
+  var sessionId = params.get('session_id');
+  if (!sessionId) return;
+
+  cleanUrl();
+
+  // Schon eingeloest? (verhindert doppelte Gutschrift bei Reload)
+  var used = JSON.parse(localStorage.getItem('easypd_used_sessions') || '[]');
+  if (used.indexOf(sessionId) !== -1) return;
+
+  showToast('Zahlung wird geprüft...');
+  try {
+    var res = await fetch('https://easypd-backend.vercel.app/verify-payment?session_id=' + encodeURIComponent(sessionId));
+    var data = await res.json();
+
+    if (data.paid && data.credits > 0) {
+      used.push(sessionId);
+      localStorage.setItem('easypd_used_sessions', JSON.stringify(used.slice(-50)));
+      credits += data.credits;
+      saveCredits();
+      updateCreditDisplay();
+      updateBtn();
+      showToast('✅ ' + data.credits + ' Credits gutgeschrieben!');
+    } else {
+      showToast('Zahlung konnte nicht bestätigt werden.');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('Fehler bei der Prüfung — Seite neu laden.');
+  }
+}
+
+function cleanUrl() {
+  try { history.replaceState(null, '', window.location.pathname); } catch(e) {}
+}
+
+// ===== PENDING SESSION: funktioniert auch OHNE Redirect von Stripe =====
+checkPendingSession();
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden) checkPendingSession();
+});
+window.addEventListener('focus', checkPendingSession);
+
+var pendingCheckRunning = false;
+async function checkPendingSession() {
+  var sessionId = localStorage.getItem('easypd_pending_session');
+  if (!sessionId || pendingCheckRunning) return;
+
+  var used = JSON.parse(localStorage.getItem('easypd_used_sessions') || '[]');
+  if (used.indexOf(sessionId) !== -1) {
+    localStorage.removeItem('easypd_pending_session');
+    return;
+  }
+
+  pendingCheckRunning = true;
+  try {
+    var res = await fetch('https://easypd-backend.vercel.app/verify-payment?session_id=' + encodeURIComponent(sessionId));
+    var data = await res.json();
+
+    if (data.paid && data.credits > 0) {
+      used.push(sessionId);
+      localStorage.setItem('easypd_used_sessions', JSON.stringify(used.slice(-50)));
+      localStorage.removeItem('easypd_pending_session');
+      credits += data.credits;
+      saveCredits();
+      updateCreditDisplay();
+      updateBtn();
+      showToast('✅ ' + data.credits + ' Credits gutgeschrieben!');
+    } else if (data.error) {
+      // Session ungueltig/abgelaufen -> aufraeumen
+      localStorage.removeItem('easypd_pending_session');
+    }
+    // wenn noch nicht bezahlt: pending behalten, wird beim naechsten Fokus/Laden erneut geprueft
+  } catch(err) {
+    console.error(err);
+  }
+  pendingCheckRunning = false;
+}
+
+var leavingForPayment = false;
 window.addEventListener('beforeunload', function(e) {
-  if (credits > 0) {
+  if (credits > 0 && !leavingForPayment) {
     e.preventDefault();
     e.returnValue = 'Achtung: Du hast noch ' + credits + ' Credit(s)! Wenn du die Seite neu lädst oder schließt, bleiben deine Credits erhalten — aber stelle sicher dass du denselben Browser verwendest.';
     return e.returnValue;
@@ -1116,6 +1207,10 @@ async function openStripe(url, credits) {
     if (!res.ok) throw new Error('Server Fehler');
     var data = await res.json();
     if (data.url) {
+      if (data.session_id) {
+        localStorage.setItem('easypd_pending_session', data.session_id);
+      }
+      leavingForPayment = true;
       window.location.href = data.url;
     } else {
       throw new Error('Keine URL');
@@ -1123,6 +1218,7 @@ async function openStripe(url, credits) {
   } catch(err) {
     console.error(err);
     showToast('Direkt zu Stripe...');
+    leavingForPayment = true;
     window.location.href = url;
   }
 }
