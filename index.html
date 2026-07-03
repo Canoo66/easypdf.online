@@ -329,7 +329,7 @@ footer a:hover{color:var(--text2)}
     <div style="margin-top:.75rem;border-top:0.5px solid var(--border);padding-top:.9rem">
       <div style="font-size:.75rem;color:var(--text2);margin-bottom:.5rem;text-align:center">Credits nicht angekommen? Code vom Support einlösen:</div>
       <div style="display:flex;gap:8px">
-        <input type="text" id="redeem-input" placeholder="cs_..." style="flex:1;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:.55rem .75rem;color:var(--text);font-size:.8rem;font-family:inherit;outline:none;min-width:0" />
+        <input type="text" id="redeem-input" placeholder="cs_... oder pi_..." style="flex:1;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:.55rem .75rem;color:var(--text);font-size:.8rem;font-family:inherit;outline:none;min-width:0" />
         <button onclick="redeemCode()" style="background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);padding:.55rem .9rem;font-size:.8rem;font-weight:500;cursor:pointer;font-family:inherit;flex-shrink:0">Einlösen</button>
       </div>
     </div>
@@ -438,7 +438,7 @@ async function redeemCode() {
   var input = document.getElementById('redeem-input');
   var code = (input.value || '').trim();
   if (!code) { showToast('Bitte Code eingeben.'); return; }
-  if (code.indexOf('cs_') !== 0) { showToast('Ungültiger Code — muss mit cs_ beginnen.'); return; }
+  if (code.indexOf('cs_') !== 0 && code.indexOf('pi_') !== 0) { showToast('Ungültiger Code — muss mit cs_ oder pi_ beginnen.'); return; }
 
   var used = JSON.parse(localStorage.getItem('easypd_used_sessions') || '[]');
   if (used.indexOf(code) !== -1) { showToast('Dieser Code wurde bereits eingelöst.'); return; }
