@@ -413,7 +413,10 @@ async function checkPaymentReturn() {
     var data = await res.json();
 
     if (data.paid && data.credits > 0) {
-      used.push(sessionId);
+      var finalId = data.session_id || sessionId;
+      if (used.indexOf(finalId) !== -1) { return; }
+      used.push(finalId);
+      if (finalId !== sessionId) used.push(sessionId);
       localStorage.setItem('easypd_used_sessions', JSON.stringify(used.slice(-50)));
       credits += data.credits;
       saveCredits();
@@ -449,7 +452,10 @@ async function redeemCode() {
     var data = await res.json();
 
     if (data.paid && data.credits > 0) {
-      used.push(code);
+      var finalId = data.session_id || code;
+      if (used.indexOf(finalId) !== -1) { showToast('Dieser Code wurde bereits eingelöst.'); return; }
+      used.push(finalId);
+      if (finalId !== code) used.push(code);
       localStorage.setItem('easypd_used_sessions', JSON.stringify(used.slice(-50)));
       credits += data.credits;
       saveCredits();
@@ -490,7 +496,10 @@ async function checkPendingSession() {
     var data = await res.json();
 
     if (data.paid && data.credits > 0) {
-      used.push(sessionId);
+      var finalId = data.session_id || sessionId;
+      if (used.indexOf(finalId) !== -1) { localStorage.removeItem('easypd_pending_session'); pendingCheckRunning = false; return; }
+      used.push(finalId);
+      if (finalId !== sessionId) used.push(sessionId);
       localStorage.setItem('easypd_used_sessions', JSON.stringify(used.slice(-50)));
       localStorage.removeItem('easypd_pending_session');
       credits += data.credits;
