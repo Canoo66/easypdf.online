@@ -1,6 +1,18 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
+<script>
+// Remove the ChatGPT referral parameter from the visible address.
+(function () {
+  try {
+    var url = new URL(window.location.href);
+    if (url.searchParams.get('utm_source') === 'chatgpt.com') {
+      url.searchParams.delete('utm_source');
+      window.history.replaceState(window.history.state, '', url.href);
+    }
+  } catch (e) { /* Local file previews may restrict history updates. */ }
+})();
+</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>EasyPDF — Dateien umwandeln</title>
