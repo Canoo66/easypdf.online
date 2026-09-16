@@ -138,6 +138,7 @@ nav{display:flex;align-items:center;justify-content:space-between;padding:1rem 1
 
 .pay-confirm{width:100%;padding:.7rem;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:.875rem;font-weight:500;cursor:pointer;font-family:inherit;transition:background .15s}
 .pay-confirm:hover{background:var(--accent2)}
+.pay-confirm:disabled{background:var(--surface2);color:var(--text3);cursor:not-allowed;border:0.5px solid var(--border)}
 .modal-note{text-align:center;font-size:.72rem;color:var(--text3);margin-top:.75rem}
 .imp-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:200;align-items:center;justify-content:center;padding:1rem}
 .imp-modal.open{display:flex}
@@ -465,8 +466,8 @@ footer a:hover{color:var(--text2)}
     <div style="background:#1a1a0e;border:0.5px solid #f59e0b;border-radius:var(--radius-sm);padding:.75rem .9rem;margin-bottom:1.1rem;display:flex;gap:10px;align-items:flex-start">
       <span style="font-size:16px;flex-shrink:0">⚠️</span>
       <div style="font-size:.75rem;color:#fbbf24;line-height:1.5">
-        <strong style="display:block;margin-bottom:.2rem">Wichtiger Hinweis</strong>
-        Deine Credits sind an diesen Browser gebunden. Wenn du den Browser-Cache löschst, die Website im Inkognito-Modus öffnest oder einen anderen Browser verwendest, können deine Credits verloren gehen und müssen neu gekauft werden.
+        <strong style="display:block;margin-bottom:.2rem">Credit-Kauf derzeit nicht verfügbar</strong>
+        Neue Credits können momentan nicht gekauft werden. Bitte versuche es später erneut.
       </div>
     </div>
     <div class="pkg-grid">
@@ -492,24 +493,8 @@ footer a:hover{color:var(--text2)}
         <div class="pkg-unit">0,10 € pro Umw.</div>
       </div>
     </div>
-    <div class="pay-label">Zahlungsmethode</div>
-    <div style="background:#0a0a1a;border:1px solid #635BFF;border-radius:var(--radius-sm);padding:.75rem 1rem;margin-bottom:1rem">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:.5rem">
-        <svg width="44" height="20" viewBox="0 0 44 20" xmlns="http://www.w3.org/2000/svg">
-          <text x="0" y="17" font-family="Arial,sans-serif" font-size="19" font-weight="900" fill="#635BFF" letter-spacing="-0.5">stripe</text>
-        </svg>
-        <span style="font-size:.7rem;color:#635BFF;font-weight:500;background:rgba(99,91,255,0.15);padding:2px 8px;border-radius:999px">Offiziell</span>
-      </div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <span style="font-size:.7rem;color:var(--text2);background:var(--surface);padding:3px 8px;border-radius:4px;border:0.5px solid var(--border)">💳 Kreditkarte</span>
-        <span style="font-size:.7rem;color:var(--text2);background:var(--surface);padding:3px 8px;border-radius:4px;border:0.5px solid var(--border)"> Apple Pay</span>
-        <span style="font-size:.7rem;color:var(--text2);background:var(--surface);padding:3px 8px;border-radius:4px;border:0.5px solid var(--border)">🅶 Google Pay</span>
-        <span style="font-size:.7rem;color:var(--text2);background:var(--surface);padding:3px 8px;border-radius:4px;border:0.5px solid var(--border)">🏦 SEPA</span>
-      </div>
-    </div>
-    <button class="pay-confirm" id="pay-confirm" onclick="buyCredits()">25 Credits für 3,99 € kaufen</button>
-    <div id="paypal-button-container" style="margin-top:.75rem;display:none"></div>
-    <div class="modal-note" style="display:flex;align-items:center;justify-content:center;gap:6px"><svg width="12" height="12" viewBox="0 0 24 24" fill="#635BFF"><path d="M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z"/></svg><span>256-bit SSL Verschlüsselung · powered by Stripe</span></div>
+    <button class="pay-confirm" id="pay-confirm" type="button" disabled aria-describedby="payment-status" onclick="buyCredits()">Kauf derzeit nicht verfügbar</button>
+    <div class="modal-note" id="payment-status" role="status">Hier wird aktuell keine Zahlung ausgelöst.</div>
   </div>
 </div>
 
@@ -549,7 +534,6 @@ var curCost = 1;
 var files = [];
 var resultBlob = null;
 var pkgSel = {i:1, c:25, p:'3,99 €'};
-var payMethod = 'pp';
 
 var noUploadTools = ['create-pdf','bewerbung','lebenslauf'];
 var toolAccepts = {
@@ -1445,20 +1429,16 @@ function selPkg(i, c, p) {
   document.getElementById('pkg-' + i).classList.add('sel');
   pkgSel = {i:i, c:c, p:p};
   var btn = document.getElementById('pay-confirm');
-  btn.textContent = c + ' Credits fuer ' + p + ' kaufen';
+  btn.disabled = true;
+  btn.textContent = 'Kauf derzeit nicht verfügbar';
 }
 
 
 
 function buyCredits() {
-  // Stripe Integration kommt hier rein
-  // Temporaer: Credits direkt gutschreiben (wird durch Stripe ersetzt)
-  credits += pkgSel.c;
-  saveCredits();
-  updateCreditDisplay();
-  closeModal();
-  showToast('+' + pkgSel.c + ' Credits hinzugefuegt!');
-  updateBtn();
+  // Keep purchases unavailable until a server verifies payment and manages balances.
+  // Never credit a client-side click or checkout return URL.
+  showToast('Der Credit-Kauf ist derzeit nicht verfügbar.');
 }
 
 function showToast(msg) {
