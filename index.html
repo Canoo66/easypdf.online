@@ -466,8 +466,8 @@ footer a:hover{color:var(--text2)}
     <div style="background:#1a1a0e;border:0.5px solid #f59e0b;border-radius:var(--radius-sm);padding:.75rem .9rem;margin-bottom:1.1rem;display:flex;gap:10px;align-items:flex-start">
       <span style="font-size:16px;flex-shrink:0">⚠️</span>
       <div style="font-size:.75rem;color:#fbbf24;line-height:1.5">
-        <strong style="display:block;margin-bottom:.2rem">Credit-Kauf derzeit nicht verfügbar</strong>
-        Neue Credits können momentan nicht gekauft werden. Bitte versuche es später erneut.
+        <strong style="display:block;margin-bottom:.2rem">Sicher bezahlen</strong>
+        Deine Zahlung wird über Stripe verarbeitet. Credits werden erst nach bestätigter Zahlung gutgeschrieben und bleiben in diesem Browser verfügbar.
       </div>
     </div>
     <div class="pkg-grid">
@@ -493,8 +493,15 @@ footer a:hover{color:var(--text2)}
         <div class="pkg-unit">0,10 € pro Umw.</div>
       </div>
     </div>
-    <button class="pay-confirm" id="pay-confirm" type="button" disabled aria-describedby="payment-status" onclick="buyCredits()">Kauf derzeit nicht verfügbar</button>
-    <div class="modal-note" id="payment-status" role="status">Hier wird aktuell keine Zahlung ausgelöst.</div>
+    <div class="pay-label">Zahlungsmethode</div>
+    <div style="background:#0a0a1a;border:1px solid #635BFF;border-radius:var(--radius-sm);padding:.75rem 1rem;margin-bottom:1rem">
+      <div style="display:flex;align-items:center;gap:10px">
+        <strong style="font-size:1rem;color:#635BFF">stripe</strong>
+        <span style="font-size:.7rem;color:#635BFF;font-weight:500;background:rgba(99,91,255,0.15);padding:2px 8px;border-radius:999px">Sichere Zahlung</span>
+      </div>
+    </div>
+    <button class="pay-confirm" id="pay-confirm" type="button" onclick="buyCredits()">25 Credits für 3,99 € kaufen</button>
+    <div class="modal-note" id="payment-status" role="status">Du wirst zur sicheren Stripe-Zahlungsseite weitergeleitet.</div>
   </div>
 </div>
 
@@ -519,7 +526,9 @@ footer a:hover{color:var(--text2)}
 
 <script>
 // STATE
-var credits = parseInt(localStorage.getItem('easypdf_credits') || '0');
+var credits = 0;
+var PAYMENT_API_URL = 'https://api.easypd.online';
+var walletId = getWalletId();
 // KI-Chat: 10 Nachrichten gratis, danach 1 Credit für je 5 weitere
 var AI_FREE_LIMIT = 10;
 var AI_MSGS_PER_CREDIT = 5;
@@ -554,15 +563,67 @@ var toolHints = {
 updateCreditDisplay();
 updateBtn();
 
-function saveCredits() { localStorage.setItem('easypdf_credits', String(credits)); }
+function getWalletId() {
+  var existing = localStorage.getItem('easypdf_wallet_id');
+  if (existing) return existing;
+  var created = crypto.randomUUID();
+  localStorage.setItem('easypdf_wallet_id', created);
+  return created;
+}
 
-window.addEventListener('beforeunload', function(e) {
-  if (credits > 0) {
-    e.preventDefault();
-    e.returnValue = 'Achtung: Du hast noch ' + credits + ' Credit(s)! Wenn du die Seite neu lädst oder schließt, bleiben deine Credits erhalten — aber stelle sicher dass du denselben Browser verwendest.';
-    return e.returnValue;
+async function paymentApi(path, options) {
+  var response = await fetch(PAYMENT_API_URL + path, Object.assign({
+    headers: {'Content-Type':'application/json'}
+  }, options || {}));
+  var data = await response.json().catch(function(){ return {}; });
+  if (!response.ok) throw new Error(data.error || 'Zahlungsdienst nicht erreichbar.');
+  return data;
+}
+
+async function refreshCredits() {
+  var data = await paymentApi('/api/credits/balance?wallet=' + encodeURIComponent(walletId));
+  credits = Number(data.credits || 0);
+  updateCreditDisplay();
+  updateBtn();
+}
+
+async function spendCredits(cost) {
+  if (!cost) return;
+  var data = await paymentApi('/api/credits/spend', {
+    method:'POST',
+    body:JSON.stringify({walletId:walletId, cost:cost, requestId:crypto.randomUUID()})
+  });
+  credits = Number(data.credits || 0);
+  updateCreditDisplay();
+}
+
+async function initPayments() {
+  var params = new URLSearchParams(location.search);
+  var sessionId = params.get('session_id');
+  try {
+    if (params.get('payment') === 'success' && sessionId) {
+      showToast('Zahlung wird bestätigt…');
+      var verified = await paymentApi('/api/credits/verify', {
+        method:'POST', body:JSON.stringify({walletId:walletId, sessionId:sessionId})
+      });
+      credits = Number(verified.credits || 0);
+      updateCreditDisplay();
+      showToast(verified.added ? ('+' + verified.added + ' Credits gutgeschrieben!') : 'Zahlung bereits gutgeschrieben.');
+    } else {
+      await refreshCredits();
+      if (params.get('payment') === 'cancelled') showToast('Zahlung abgebrochen.');
+    }
+  } catch (error) {
+    showToast(error.message);
+  } finally {
+    if (params.has('payment') || params.has('session_id')) {
+      params.delete('payment'); params.delete('session_id');
+      var clean = location.pathname + (params.toString() ? '?' + params.toString() : '') + location.hash;
+      history.replaceState(null, '', clean);
+    }
+    updateBtn();
   }
-});
+}
 
 function updateCreditDisplay() {
   document.getElementById('credit-count').textContent = credits;
@@ -881,9 +942,7 @@ async function convert() {
     else if (curTool === 'lebenslauf'){ blob = await toolLebenslauf(); name = 'lebenslauf.pdf'; }
 
     setProgress(100, 'Fertig!');
-    credits -= curCost;
-    saveCredits();
-    updateCreditDisplay();
+    await spendCredits(curCost);
     resultBlob = blob;
     document.getElementById('result-text').textContent = name + ' ist fertig (' + (blob.size/1024).toFixed(0) + ' KB)';
     document.getElementById('result-box').classList.add('show');
@@ -1429,16 +1488,27 @@ function selPkg(i, c, p) {
   document.getElementById('pkg-' + i).classList.add('sel');
   pkgSel = {i:i, c:c, p:p};
   var btn = document.getElementById('pay-confirm');
-  btn.disabled = true;
-  btn.textContent = 'Kauf derzeit nicht verfügbar';
+  btn.disabled = false;
+  btn.textContent = c + ' Credits für ' + p + ' kaufen';
 }
 
 
 
-function buyCredits() {
-  // Keep purchases unavailable until a server verifies payment and manages balances.
-  // Never credit a client-side click or checkout return URL.
-  showToast('Der Credit-Kauf ist derzeit nicht verfügbar.');
+async function buyCredits() {
+  var btn = document.getElementById('pay-confirm');
+  var packageIds = ['credits-5','credits-25','credits-60','credits-150'];
+  btn.disabled = true;
+  btn.textContent = 'Stripe wird geöffnet…';
+  try {
+    var data = await paymentApi('/api/credits/checkout', {
+      method:'POST', body:JSON.stringify({walletId:walletId, packageId:packageIds[pkgSel.i]})
+    });
+    location.href = data.checkoutUrl;
+  } catch (error) {
+    btn.disabled = false;
+    btn.textContent = pkgSel.c + ' Credits für ' + pkgSel.p + ' kaufen';
+    showToast(error.message);
+  }
 }
 
 function showToast(msg) {
@@ -1575,10 +1645,13 @@ async function aiSend() {
       return;
     }
     // 1 Credit einlösen -> 5 bezahlte Nachrichten freischalten
-    credits -= 1;
+    try {
+      await spendCredits(1);
+    } catch (error) {
+      aiAddMsg('bot', '⚠️ ' + error.message);
+      return;
+    }
     aiPaidLeft = AI_MSGS_PER_CREDIT;
-    saveCredits();
-    updateCreditDisplay();
     saveAiUsage();
     showToast('1 Credit eingelöst — ' + AI_MSGS_PER_CREDIT + ' KI-Nachrichten freigeschaltet');
   }
@@ -1668,6 +1741,7 @@ function scrollToAI() {
 
 document.addEventListener('DOMContentLoaded', function() {
   aiRenderWelcome();
+  initPayments();
   // Neon-Logo überall setzen
   var hdr = document.getElementById('ai-header-logo');
   if (hdr) hdr.src = STUDIO_LOGO;
